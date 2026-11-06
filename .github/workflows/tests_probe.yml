@@ -1,0 +1,77 @@
+name: Tests probe
+
+# Throwaway: builds every test target on Windows and macOS and lists what
+# doesn't link and which tests fail. Fork only.
+
+on:
+  push:
+    branches: [ci/win-tests]
+
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-msys2
+        with:
+          msystem: UCRT64
+      - name: Install GoogleTest
+        run: pacman -S --noconfirm --needed mingw-w64-ucrt-x86_64-gtest
+      - name: Configure
+        run: cmake -S . -B build --preset development -D QT=OFF -D BUILD_TESTING=ON
+      - name: Build tests
+        run: cmake --build build --target tests/all -- -k 0 > build.log 2>&1 || true
+      - name: Report
+        run: |
+          echo "== failed targets"; grep '^FAILED:' build.log || true
+          echo "== undefined symbols"; grep -o "undefined reference to \`[^']*'" build.log | sort | uniq -c | sort -rn | head -80 || true
+      - name: Run tests
+        run: ctest --test-dir build -j4 -E '^Rage128\.JitHost$' 2>&1 | tail -60 || true
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: build-log-windows
+          path: build.log
+
+  macos:
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - name: Install dependencies
+        run: >-
+          brew install
+          sdl3
+          rtmidi
+          openal-soft
+          fluidsynth
+          libslirp
+          vde
+          libserialport
+          vulkan-headers
+          zstd
+          googletest
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Configure
+        run: >-
+          cmake -S . -B build --preset development
+          -D QT=OFF -D BUILD_TESTING=ON
+          -D OpenAL_ROOT=$(brew --prefix openal-soft)
+          -D LIBSERIALPORT_ROOT=$(brew --prefix libserialport)
+      - name: Build tests
+        run: cmake --build build --target tests/all -- -k 0 > build.log 2>&1 || true
+      - name: Report
+        run: |
+          echo "== failed targets"; grep '^FAILED:' build.log || true
+          echo "== errors"; grep -E 'error:' build.log | sed 's/^.*\/86Box\///' | sort | uniq -c | sort -rn | head -40 || true
+          echo "== undefined symbols"; grep -E '^ +"_[^"]*", referenced from' build.log | sort | uniq -c | sort -rn | head -80 || true
+      - name: Run tests
+        run: ctest --test-dir build -j3 -E '^Rage128\.JitHost$' 2>&1 | tail -60 || true
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: build-log-macos
+          path: build.log
