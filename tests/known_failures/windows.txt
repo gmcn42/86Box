@@ -1,0 +1,6 @@
+# Tests that fail in the Windows jobs of the Tests workflow. See README.md.
+
+# Doesn't link: codegen_ops_shift.c refers to mem_a20_reset_line and
+# mem_a20_reset_line_fetch (19366db81), which the test doesn't define. On
+# Linux --gc-sections drops the references. To fix.
+codegen_shift_cl_tests_NOT_BUILT
