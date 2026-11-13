@@ -229,7 +229,7 @@ int cpu_op_cycles;
     do {                                                                                      \
         if (cpu_prefetch_cycles) {                                                            \
             const int prefetch_before = cycles;                                               \
-            prefetch_run(instr_cycles, bytes, modrm, reads, reads_l, writes, writes_l, ea32); \
+            prefetch_run_inline(instr_cycles, bytes, modrm, reads, reads_l, writes, writes_l, ea32); \
             cpu_op_cycles += prefetch_before - cycles;                                        \
         }                                                                                     \
     } while (0)
