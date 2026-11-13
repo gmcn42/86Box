@@ -494,8 +494,8 @@ check_seg_valid(x86seg *s)
         op_loadseg(0, s);
 }
 
-static void
-read_descriptor(uint32_t addr, uint16_t *segdat, uint32_t *segdat32, int override)
+static void __attribute__((noinline))
+read_descriptor_slow(uint32_t addr, uint16_t *segdat, uint32_t *segdat32, int override)
 {
     if (override)
         cpl_override = 1;
@@ -510,6 +510,26 @@ read_descriptor(uint32_t addr, uint16_t *segdat, uint32_t *segdat32, int overrid
     }
     if (override)
         cpl_override = 0;
+}
+
+/* A descriptor sits in one page when it is 8-aligned, so a mapped page
+   is read with a single lookup and load, as readmeml()'s own fast path
+   would for each half. */
+static void __attribute__((noinline))
+read_descriptor(uint32_t addr, uint16_t *segdat, uint32_t *segdat32, int override)
+{
+#ifndef OPS_286_386
+    if (!cpu_16bitbus && !(addr & 7)) {
+        const uintptr_t page = readlookup2[addr >> 12];
+
+        if (page != (uintptr_t) LOOKUP_INV) {
+            /* Guest memory is little-endian, like the doubleword pair */
+            memcpy(segdat32, (const void *) (page + addr), 8);
+            return;
+        }
+    }
+#endif
+    read_descriptor_slow(addr, segdat, segdat32, override);
 }
 
 int
