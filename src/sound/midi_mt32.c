@@ -178,8 +178,9 @@ display_mt32_message(UNUSED(void *instance_data), const char *message)
     sz     = snprintf(NULL, 0, "MT-32: %s", message);
     ui_msg = calloc(sz + 1, 1);
     if (ui_msg) {
-        snprintf(ui_msg, sz, "MT-32: %s", message);
+        snprintf(ui_msg, sz + 1, "MT-32: %s", message);
         ui_sb_mt32lcd(ui_msg);
+        free(ui_msg);
     }
 }
 
