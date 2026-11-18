@@ -884,7 +884,18 @@ OpenGLRenderer::initialize()
 
         context->setFormat(format());
 
-        if (!context->create())
+        bool created = context->create();
+#ifndef Q_OS_MACOS
+        if (!created) {
+            /* Nothing here needs 3.2, so drivers that stop at 3.0 or 3.1 can run this renderer too. */
+            QSurfaceFormat fallback = format();
+            fallback.setVersion(3, 0);
+            fallback.setProfile(QSurfaceFormat::NoProfile);
+            context->setFormat(fallback);
+            created = context->create();
+        }
+#endif
+        if (!created)
             throw opengl_init_error(tr("Couldn't create OpenGL context."));
 
         if (!context->makeCurrent(this))

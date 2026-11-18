@@ -20,6 +20,7 @@
 #include <QApplication>
 #include <QDesktopServices>
 #include <QClipboard>
+#include <QOpenGLContext>
 
 #include "imgui.h"
 #include "imgui_impl_opengl3.h"
@@ -149,8 +150,10 @@ ensure_gl(void)
     if (g_gl_ready)
         return;
 
-    /* Qt requests a 3.2 (4.1 on macOS) core profile, so GLSL 150 fits. */
-    if (ImGui_ImplOpenGL3_Init("#version 150"))
+    /* Qt requests a 3.2 (4.1 on macOS) core profile, so GLSL 150 fits. Drivers without 3.2 get a 3.0 or 3.1
+       context, which takes GLSL 130. */
+    const QSurfaceFormat format = QOpenGLContext::currentContext()->format();
+    if (ImGui_ImplOpenGL3_Init(format.version() >= qMakePair(3, 2) ? "#version 150" : "#version 130"))
         g_gl_ready = true;
 }
 
