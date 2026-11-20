@@ -126,6 +126,7 @@ io_handler(UNUSED(uint8_t set), UNUSED(uint16_t base), UNUSED(uint16_t size),
 }
 
 void io_set_turbo(UNUSED(uint16_t port), UNUSED(int turbo)) { abort(); }
+void io_set_string(UNUSED(uint16_t port), UNUSED(io_insw_t insw), UNUSED(io_outsw_t outsw), UNUSED(void *priv)) { }
 void *device_add_params(UNUSED(const device_t *dev), UNUSED(void *params)) { abort(); }
 int device_get_config_int(UNUSED(const char *name)) { abort(); }
 void device_context_inst(UNUSED(const device_t *dev), UNUSED(int inst)) { abort(); }
