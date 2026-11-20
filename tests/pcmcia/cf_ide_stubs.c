@@ -9,6 +9,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <wchar.h>
 #define HAVE_STDARG_H
 #include <86box/86box.h>
@@ -89,6 +90,7 @@ hdd_image_write(uint8_t id, uint32_t sector, uint32_t count, uint8_t *buffer)
     return 0;
 }
 
+int hdd_image_flush(UNUSED(uint8_t id)) { return 0; }
 int hdd_image_zero(UNUSED(uint8_t id), UNUSED(uint32_t sector), UNUSED(uint32_t count)) { abort(); }
 void hdd_preset_apply(UNUSED(int id)) { }
 double hdd_timing_read(UNUSED(hard_disk_t *disk), UNUSED(uint32_t addr), UNUSED(uint32_t len)) { return 0; }
