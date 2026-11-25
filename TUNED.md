@@ -25,6 +25,12 @@ builds and boots.
   per emulated second 0.98 vs 1.22 on master), same score.
 - WinBench 99 CPUmark32 and FPU WinMark on a Pentium MMX 233 and a Pentium II 350 (Windows 98 SE), x86-64: as
   fast as PR 8829 alone (CPUmark32 cost −37 % vs master at the PII 350), same scores.
+- WinBench 99 CPUmark32 on a Pentium 100 (Windows 98 SE), Pi 5: host CPU per emulated second 1.27 vs 1.29 for
+  PR 8829 alone and 1.91 on master (77 % vs 52 % speed), same score.
+- DOS benchmarks on the 486 DX4-100 (3DBench, Landmark 6, PCPBench), Pi 5: real time on every build; PCPBench and
+  Landmark cheaper than master, 3DBench about 5 % more expensive (as with PR 8829 alone).
+- Quake II, GLQuake (Voodoo 2) and the 3DMark99 race scene on a Pentium MMX 233 and a Pentium II 350, x86-64: same
+  cost, scores and end screens as PR 8829 alone.
 - 150 WinBench 96 runs on the Pi without a guest fault; 410 boots of the WfW VM on both hosts, one of which stopped
   in POST after the configuration screen (not reproduced since).
 - REP string checksums identical to master (dynarec and interpreter), protected-mode page fault tests 20/20, the
