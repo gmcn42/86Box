@@ -1,0 +1,142 @@
+name: S3 tests
+
+# Fork only (gmcn42/86Box), never part of an upstream pull request: builds just
+# the S3 test targets and runs S3.* with CTest on Linux, Windows and macOS, so a
+# branch touching the S3 code or its tests can be checked on all three without
+# the rest of the test suite, whose state on master varies. Use it by
+# cherry-picking this commit onto a probe branch and pushing that.
+
+on:
+
+  push:
+    paths:
+      - src/video/vid_s3*
+      - tests/video/**
+      - .github/workflows/s3_tests.yml
+
+  workflow_dispatch:
+
+jobs:
+
+  linux:
+
+    name: "Linux, x86_64"
+
+    runs-on: ubuntu-26.04
+
+    timeout-minutes: 30
+
+    steps:
+      - name: Install dependencies
+        run: >-
+          sudo apt update && sudo apt install
+          build-essential
+          ninja-build
+          libfreetype-dev
+          libgles2-mesa-dev
+          libsdl3-dev
+          libpng-dev
+          libc6-dev
+          librtmidi-dev
+          libopenal-dev
+          libslirp-dev
+          libfluidsynth-dev
+          libvdeplug-dev
+          libserialport-dev
+          libzstd-dev
+          libarchive-dev
+          libvulkan-dev
+          libgtest-dev
+
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Configure CMake
+        run: >-
+          cmake -S . -B build --preset development
+          -D QT=OFF
+          -D BUILD_TESTING=ON
+
+      - name: Build the S3 tests
+        run: cmake --build build --target s3_accel_tests s3_display_tests
+
+      - name: Run the S3 tests
+        run: ctest --test-dir build -R '^S3\.' --output-on-failure --no-tests=error
+
+  windows:
+
+    name: "Windows, UCRT64"
+
+    runs-on: windows-2022
+
+    timeout-minutes: 30
+
+    defaults:
+      run:
+        shell: msys2 {0}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Prepare MSYS2 environment
+        uses: ./.github/actions/setup-msys2
+        with:
+          msystem: UCRT64
+
+      - name: Install GoogleTest
+        run: pacman -S --noconfirm --needed "${MINGW_PACKAGE_PREFIX}-gtest"
+
+      - name: Configure CMake
+        run: >-
+          cmake -S . -B build --preset development
+          -D QT=OFF
+          -D BUILD_TESTING=ON
+
+      - name: Build the S3 tests
+        run: cmake --build build --target s3_accel_tests s3_display_tests
+
+      - name: Run the S3 tests
+        run: ctest --test-dir build -R '^S3\.' --output-on-failure --no-tests=error
+
+  macos:
+
+    name: "macOS, arm64"
+
+    runs-on: macos-15
+
+    timeout-minutes: 30
+
+    steps:
+      - name: Install dependencies
+        run: >-
+          brew install
+          sdl3
+          rtmidi
+          openal-soft
+          fluidsynth
+          libslirp
+          vde
+          libserialport
+          vulkan-headers
+          zstd
+          libarchive
+          googletest
+
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Configure CMake
+        run: >-
+          cmake -S . -B build --preset development
+          -D QT=OFF
+          -D BUILD_TESTING=ON
+          -D OpenAL_ROOT=$(brew --prefix openal-soft)
+          -D LIBSERIALPORT_ROOT=$(brew --prefix libserialport)
+          -D LibArchive_ROOT=$(brew --prefix libarchive)
+
+      - name: Build the S3 tests
+        run: cmake --build build --target s3_accel_tests s3_display_tests
+
+      - name: Run the S3 tests
+        run: ctest --test-dir build -R '^S3\.' --output-on-failure --no-tests=error
