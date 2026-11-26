@@ -908,6 +908,311 @@ test_xfer_end_11b(void)
     xfer_end(4, 3);
 }
 
+/* Chips with a databook here, whose BitBLT examples the BitBLT tests encode. */
+#define C_BOOK (C_928 | C_928PCI | C_864 | C_964 | C_868 | C_968 | C_TRIO32 | C_TRIO64 | C_TRIO64V | C_TRIO64V2)
+
+/* BitBLT, draw, write, X major (bit 6 = 0); bits 7 and 5 are the Y and X directions. */
+#define CMD_BLT 0xc011
+
+/* What the screen holds around the BitBLT sources. */
+#define BLT_OLD 0x5a5a5a5a
+
+/* The bitmap the BitBLT tests copy from. */
+static uint32_t
+blt_pixel(int x, int y)
+{
+    return ((0x2545f491 * (uint32_t) (y * 1024 + x + 7)) >> 3) & depth_mask();
+}
+
+static void
+pix_w(int x, int y, uint32_t val)
+{
+    uint32_t addr = (y * s3.width + x) * (cur_bpp / 8);
+
+    for (int b = 0; b < cur_bpp / 8; b++)
+        vram[addr + b] = val >> (b * 8);
+}
+
+/* A w x h source of blt_pixel() at (x, y) on a screen of BLT_OLD. */
+static void
+blt_source(int x, int y, int w, int h)
+{
+    memset(vram, 0x5a, sizeof(vram));
+    for (int j = 0; j < h; j++)
+        for (int i = 0; i < w; i++)
+            pix_w(x + i, y + j, blt_pixel(x + i, y + j));
+}
+
+/* BitBLT as in the books' example: (x1, y1) and (x2, y2) are the top left corners of the source and
+   the destination; for X negative both start at x + WIDTH - 1, for Y negative at y + HEIGHT - 1. */
+static void
+blt(int x1, int y1, int x2, int y2, int w, int h, int xpos, int ypos, uint16_t extra)
+{
+    if (!xpos) {
+        x1 += w - 1;
+        x2 += w - 1;
+    }
+    if (!ypos) {
+        y1 += h - 1;
+        y2 += h - 1;
+    }
+    port_w(0x86e8, x1); /* CUR_X: the source */
+    port_w(0x82e8, y1); /* CUR_Y */
+    port_w(0x8ee8, x2); /* DESTX_DISTP: the destination */
+    port_w(0x8ae8, y2); /* DESTY_AXSTP */
+    port_w(0x96e8, w - 1);
+    port_w(0xbee8, 0x0000 | (h - 1));
+    port_w(0x9ae8, CMD_BLT | (xpos ? 0x20 : 0) | (ypos ? 0x80 : 0) | extra);
+}
+
+/* The expected pixel after a copy of the w x h source at (x1, y1) to (x2, y2), with `dst` the value
+   of a copied pixel: the destination holds the source as it was before, the rest of the source is
+   unchanged, everything else still BLT_OLD. */
+static uint32_t
+blt_want(int x, int y, int x1, int y1, int x2, int y2, int w, int h, uint32_t dst)
+{
+    if ((x >= x2) && (x < x2 + w) && (y >= y2) && (y < y2 + h))
+        return dst;
+    if ((x >= x1) && (x < x1 + w) && (y >= y1) && (y < y1 + h))
+        return blt_pixel(x, y);
+    return BLT_OLD & depth_mask();
+}
+
+/* Check the copy over both rectangles and the ring around them. */
+static void
+check_blt(int x1, int y1, int x2, int y2, int w, int h, const char *what)
+{
+    int bad = 0;
+
+    for (int y = MIN(y1, y2) - 1; y <= MAX(y1, y2) + h; y++) {
+        for (int x = MIN(x1, x2) - 1; x <= MAX(x1, x2) + w; x++) {
+            uint32_t want = blt_want(x, y, x1, y1, x2, y2, w, h, blt_pixel(x - x2 + x1, y - y2 + y1));
+
+            if ((pix(x, y) != want) && !bad++)
+                check(0, "%s: pixel (%d, %d) is %X, not %X", what, x, y, pix(x, y), want);
+        }
+    }
+}
+
+static const char *const dir_names[4] = { "-X-Y", "+X-Y", "-X+Y", "+X+Y" };
+
+/* BitBLT through the plane: display memory as the colour source and FRGD_MIX NEW (0067h) copy the
+   source rectangle (86C928 11.3.8, p. 11-10; Vision864 and Vision964 11.3.3.6, p. 11-15;
+   Vision868 and Vision968 5.4.3.6, p. 5-19; Trio32/64 13.3.3.6, p. 13-17; Trio64V+ 15.4.3.6,
+   p. 15-17). The 86C928 book writes the X negative start as x1 - WIDTH - 1, the later books as
+   x1 + WIDTH - 1. With PIX_CNTL A000h FRGD_MIX always selects, so BKGD_MIX doesn't matter: each
+   copy runs with it left at "leave" (0003h) and at NEW (0007h). */
+static void
+blt_copy(int x1, int y1, int x2, int y2, int w, int h, int xpos, int ypos, const char *what)
+{
+    char name[48];
+
+    for (int i = 0; i < 2; i++) {
+        uint16_t bkgd_mix = i ? 0x0007 : 0x0003;
+
+        blt_source(x1, y1, w, h);
+        port_w(0xbee8, 0xa000); /* PIX_CNTL: FRGD_MIX selects */
+        port_w(0xbae8, 0x0067); /* FRGD_MIX: display memory, NEW */
+        port_w(0xb6e8, bkgd_mix);
+        blt(x1, y1, x2, y2, w, h, xpos, ypos, 0);
+        snprintf(name, sizeof(name), "%s, BKGD_MIX %04X", what, bkgd_mix);
+        check_blt(x1, y1, x2, y2, w, h, name);
+    }
+}
+
+/* Disjoint rectangles, each direction. */
+static void
+test_blt_dirs(void)
+{
+    char what[32];
+
+    for (int d = 0; d < 4; d++) {
+        snprintf(what, sizeof(what), "disjoint %s", dir_names[d]);
+        blt_copy(20, 10, 60, 30, 9, 5, d & 1, d & 2, what);
+    }
+}
+
+/* Overlapping rectangles: "If x1 > x2 then X Positive, else X Negative", the same for Y (the books'
+   case 2, same pages). Shifts by one pixel, by several and diagonally. */
+static void
+test_blt_overlap(void)
+{
+    static const int shifts[][2] = {
+        { 3,  2  },
+        { -3, 2  },
+        { 3,  -2 },
+        { -3, -2 },
+        { 1,  0  },
+        { -1, 0  },
+        { 8,  0  },
+        { -8, 0  },
+        { 0,  1  },
+        { 0,  -1 }
+    };
+    char what[32];
+
+    for (size_t i = 0; i < sizeof(shifts) / sizeof(shifts[0]); i++) {
+        int x2 = 30 + shifts[i][0];
+        int y2 = 20 + shifts[i][1];
+
+        snprintf(what, sizeof(what), "overlap %+d,%+d", shifts[i][0], shifts[i][1]);
+        blt_copy(30, 20, x2, y2, 12, 5, 30 >= x2, 20 >= y2, what);
+    }
+}
+
+/* A BitBLT goes through the mix and the write mask like any drawing (FRGD_MIX bits 3-0 and WRT_MASK,
+   same pages as in test_mixes() and test_wrt_mask()): XOR with the destination, and NEW with a
+   write mask in both directions. The scissors clip the destination, not the source (as in
+   test_rect_scissors()). */
+static void
+test_blt_mix_mask(void)
+{
+    uint32_t mask = 0x0ff0f03c & depth_mask();
+    uint32_t old  = BLT_OLD & depth_mask();
+    int      bad  = 0;
+
+    blt_source(20, 10, 9, 5);
+    port_w(0xbee8, 0xa000);
+    port_w(0xbae8, 0x0065); /* FRGD_MIX: display memory, XOR */
+    blt(20, 10, 60, 30, 9, 5, 1, 1, 0);
+    for (int y = 29; y <= 35; y++)
+        for (int x = 59; x <= 69; x++) {
+            uint32_t want = blt_want(x, y, 20, 10, 60, 30, 9, 5, blt_pixel(x - 40, y - 20) ^ old);
+
+            if ((pix(x, y) != want) && !bad++)
+                check(0, "XOR: pixel (%d, %d) is %X, not %X", x, y, pix(x, y), want);
+        }
+
+    for (int d = 0; d < 4; d += 3) {
+        bad = 0;
+        blt_source(20, 10, 9, 5);
+        color_w(0xaae8, mask);
+        port_w(0xbae8, 0x0067);
+        port_w(0xb6e8, 0x0007); /* BKGD_MIX NEW too, as a driver may leave it */
+        blt(20, 10, 60, 30, 9, 5, d & 1, d & 2, 0);
+        for (int y = 29; y <= 35; y++)
+            for (int x = 59; x <= 69; x++) {
+                uint32_t src  = blt_pixel(x - 40, y - 20);
+                uint32_t want = blt_want(x, y, 20, 10, 60, 30, 9, 5, (src & mask) | (old & ~mask));
+
+                if ((pix(x, y) != want) && !bad++)
+                    check(0, "WRT_MASK %s: pixel (%d, %d) is %X, not %X", dir_names[d], x, y, pix(x, y), want);
+            }
+    }
+
+    bad = 0;
+    blt_source(20, 10, 9, 5);
+    color_w(0xaae8, 0xffffffff);
+    port_w(0xbee8, 0x1000 | 31); /* SCISSORS_T */
+    port_w(0xbee8, 0x2000 | 62); /* SCISSORS_L */
+    port_w(0xbee8, 0x3000 | 32); /* SCISSORS_B */
+    port_w(0xbee8, 0x4000 | 65); /* SCISSORS_R */
+    blt(20, 10, 60, 30, 9, 5, 1, 1, 0);
+    for (int y = 29; y <= 35; y++)
+        for (int x = 59; x <= 69; x++) {
+            int      in   = (x >= 62) && (x <= 65) && (y >= 31) && (y <= 32);
+            uint32_t want = in ? blt_pixel(x - 40, y - 20) : old;
+
+            if ((pix(x, y) != want) && !bad++)
+                check(0, "scissors: pixel (%d, %d) is %X, not %X", x, y, pix(x, y), want);
+        }
+}
+
+/* BitBLT across the plane: PIX_CNTL A0C0h lets display memory select the mix. A pixel of the source
+   reads as 1 if all its bits enabled in RD_MASK are 1s (86C928 11.3.9, p. 11-11; Vision864 and
+   Vision964 11.3.3.7, p. 11-16; Vision868 and Vision968 5.4.3.7, p. 5-20; Trio32/64 13.3.3.7,
+   pp. 13-18 and 13-19; Trio64V+ 15.4.3.7, p. 15-18). First the books' example: plane 0 read, plane 2
+   written, FRGD_MIX logical 1, BKGD_MIX logical 0. Then their note: a 2-colour image from the
+   source bits, here read from planes 0 and 1. CMD bit 1 (multi-pixel) set as in the example. */
+static void
+blt_across(uint32_t rd, uint32_t wrt, uint16_t fmix, uint16_t bmix, uint32_t fg, uint32_t bg, const char *what)
+{
+    int bad = 0;
+
+    blt_source(20, 10, 9, 5);
+    color_w(0xa6e8, fg);
+    color_w(0xa2e8, bg);
+    color_w(0xaee8, rd);
+    color_w(0xaae8, wrt);
+    port_w(0xbee8, 0xa0c0); /* PIX_CNTL: display memory selects the mix */
+    port_w(0xbae8, fmix);
+    port_w(0xb6e8, bmix);
+    blt(20, 10, 60, 30, 9, 5, 1, 1, CMD_PX_MD);
+    for (int y = 29; y <= 35; y++)
+        for (int x = 59; x <= 69; x++) {
+            uint32_t bit  = (blt_pixel(x - 40, y - 20) & rd) == rd;
+            uint32_t new  = (fmix == 0x0002) ? (bit ? ~0 : 0) : (bit ? fg : bg);
+            uint32_t old  = BLT_OLD & depth_mask();
+            uint32_t want = blt_want(x, y, 20, 10, 60, 30, 9, 5, ((new & wrt) | (old & ~wrt)) & depth_mask());
+
+            if ((pix(x, y) != want) && !bad++)
+                check(0, "%s: pixel (%d, %d) is %X, not %X", what, x, y, pix(x, y), want);
+        }
+}
+
+static void
+test_blt_across(void)
+{
+    blt_across(0x0001, 0x0004, 0x0002, 0x0001, 0, 0, "plane 0 to plane 2");
+    blt_across(0x0003, 0xffffffff, 0x0027, 0x0007, color(), ~color() & depth_mask(), "planes 0+1, 2 colours");
+}
+
+/* Colour compare (MULT_MISC, BEE8h index E, bit 8): with SRC NE (bit 7) = 0 the destination isn't
+   updated where the source equals COLOR_CMP (B2E8h), with SRC NE = 1 it isn't updated where they
+   differ. In 32 bpp COLOR_CMP is two 16-bit registers, low half first (86C928 p. 10-18;
+   Vision864 and Vision964 p. 18-18; Vision868 and Vision968 pp. 5-5 and 5-6; Trio32/64 pp. 18-23
+   and 18-24, and 13.2, p. 13-2; Trio64V+ p. 20-18). A source of two colours over a destination
+   that holds the bitmap. */
+static void
+test_blt_color_cmp(void)
+{
+    uint32_t a = 0x00123456 & depth_mask();
+    uint32_t b = 0x00abcdef & depth_mask();
+
+    for (int srcne = 0; srcne <= 1; srcne++) {
+        int bad = 0;
+
+        blt_source(60, 30, 9, 5);
+        for (int y = 10; y < 15; y++)
+            for (int x = 20; x < 29; x++)
+                pix_w(x, y, ((x > 21) && (x < 26) && (y > 10) && (y < 14)) ? b : a);
+        port_w(0xbee8, 0xe100 | (srcne << 7)); /* MULT_MISC: compare on, RSF = 0 */
+        color_w(0xb2e8, a);                    /* COLOR_CMP */
+        port_w(0xbee8, 0xa000);
+        port_w(0xbae8, 0x0067);
+        blt(20, 10, 60, 30, 9, 5, 1, 1, 0);
+        for (int y = 30; y < 35; y++)
+            for (int x = 60; x < 69; x++) {
+                uint32_t src  = (((x - 40) > 21) && ((x - 40) < 26) && ((y - 20) > 10) && ((y - 20) < 14)) ? b : a;
+                int      keep = srcne ? (src != a) : (src == a);
+                uint32_t want = keep ? blt_pixel(x, y) : src;
+
+                if ((pix(x, y) != want) && !bad++)
+                    check(0, "SRC NE %d: pixel (%d, %d) is %X, not %X", srcne, x, y, pix(x, y), want);
+            }
+    }
+}
+
+/* Where a BitBLT leaves the position registers. The books don't say; a real Trio64V+ (rev 44) leaves
+   CUR_X/CUR_Y at the source start, DESTX_DISTP at the destination start X and DESTY_AXSTP one line
+   past the destination's last line, in each direction. */
+static void
+test_blt_end(void)
+{
+    for (int d = 0; d < 4; d++) {
+        int xpos = d & 1, ypos = d & 2;
+        int sx = xpos ? 20 : 28, sy = ypos ? 10 : 14;
+        int dx = xpos ? 60 : 68, dy = ypos ? 30 : 34;
+
+        blt_copy(20, 10, 60, 30, 9, 5, xpos, ypos, dir_names[d]);
+        check((port_r(0x86e8) == sx) && (port_r(0x82e8) == sy), "%s: CUR_X/CUR_Y end at %u,%u, not %d,%d",
+              dir_names[d], port_r(0x86e8), port_r(0x82e8), sx, sy);
+        check((port_r(0x8ee8) == dx) && (port_r(0x8ae8) == (ypos ? dy + 5 : dy - 5)),
+              "%s: DESTX/DESTY end at %u,%u, not %d,%d", dir_names[d], port_r(0x8ee8), port_r(0x8ae8), dx,
+              ypos ? dy + 5 : dy - 5);
+    }
+}
+
 int
 main(int argc, char **argv)
 {
@@ -927,6 +1232,12 @@ main(int argc, char **argv)
     run("xfer_end_16", test_xfer_end_16, C_TRIO64V);
     run("xfer_end_10b", test_xfer_end_10b, C_TRIO32 | C_TRIO64 | C_868 | C_968 | C_TRIO64V | C_TRIO64V2);
     run("xfer_end_11b", test_xfer_end_11b, C_TRIO32 | C_868 | C_968 | C_TRIO64V | C_TRIO64V2);
+    run("blt_dirs", test_blt_dirs, C_BOOK);
+    run("blt_overlap", test_blt_overlap, C_BOOK);
+    run("blt_mix_mask", test_blt_mix_mask, C_BOOK);
+    run("blt_across", test_blt_across, C_BOOK);
+    run("blt_color_cmp", test_blt_color_cmp, C_BOOK);
+    run("blt_end", test_blt_end, C_TRIO64V);
 
     if (verbose)
         print_matrix();
