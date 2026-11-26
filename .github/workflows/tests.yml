@@ -104,6 +104,7 @@ jobs:
           libvdeplug-dev
           libserialport-dev
           libzstd-dev
+          libarchive-dev
           libvulkan-dev
           libgtest-dev
 
@@ -217,6 +218,7 @@ jobs:
           libserialport
           vulkan-headers
           zstd
+          libarchive
           googletest
 
       - name: Checkout repository
@@ -229,6 +231,7 @@ jobs:
           -D BUILD_TESTING=ON
           -D OpenAL_ROOT=$(brew --prefix openal-soft)
           -D LIBSERIALPORT_ROOT=$(brew --prefix libserialport)
+          -D LibArchive_ROOT=$(brew --prefix libarchive)
 
       - name: Build tests
         run: >-
