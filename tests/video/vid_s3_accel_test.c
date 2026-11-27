@@ -1213,6 +1213,56 @@ test_blt_end(void)
     }
 }
 
+/* External clipping (MULT_MISC, BEE8h index E, bit 5): "Only pixels outside the clipping rectangle are
+   drawn" (86C928 p. 10-18, Vision864 and Vision964 p. 18-18, Trio32/64 p. 18-23, Trio64V+ p. 20-18),
+   and it applies to all bitmap updates (86C928 p. 11-2, Vision864 and Vision964 p. 11-5, Vision868 and
+   Vision968 p. 5-9, Trio32/64 p. 13-7, Trio64V+ p. 15-8). A real Trio64V+ (rev 44) does so for a
+   rectangle fill and a BitBLT. */
+static void
+test_ext_clip(void)
+{
+    uint32_t old = BLT_OLD & depth_mask();
+    int      bad = 0;
+
+    memset(vram, 0x5a, sizeof(vram));
+    port_w(0xbee8, 0x1000 | 52);  /* SCISSORS_T */
+    port_w(0xbee8, 0x2000 | 105); /* SCISSORS_L */
+    port_w(0xbee8, 0x3000 | 55);  /* SCISSORS_B */
+    port_w(0xbee8, 0x4000 | 110); /* SCISSORS_R */
+    port_w(0xbee8, 0xe020);       /* MULT_MISC: external clipping */
+    rect_start(100, 50, 20);
+    port_w(0xbee8, 0x0000 | 9);
+    port_w(0x9ae8, 0x40b1);
+    for (int y = 49; y <= 60; y++)
+        for (int x = 99; x <= 120; x++) {
+            int      in_rect = (x >= 100) && (x <= 119) && (y >= 50) && (y <= 59);
+            int      in_clip = (x >= 105) && (x <= 110) && (y >= 52) && (y <= 55);
+            uint32_t want    = (in_rect && !in_clip) ? color() : old;
+
+            if ((pix(x, y) != want) && !bad++)
+                check(0, "fill: pixel (%d, %d) is %X, not %X", x, y, pix(x, y), want);
+        }
+
+    bad = 0;
+    blt_source(20, 10, 9, 5);
+    port_w(0xbee8, 0x1000 | 31);
+    port_w(0xbee8, 0x2000 | 62);
+    port_w(0xbee8, 0x3000 | 32);
+    port_w(0xbee8, 0x4000 | 65);
+    port_w(0xbee8, 0xe020);
+    port_w(0xbee8, 0xa000);
+    port_w(0xbae8, 0x0067);
+    blt(20, 10, 60, 30, 9, 5, 1, 1, 0);
+    for (int y = 29; y <= 35; y++)
+        for (int x = 59; x <= 69; x++) {
+            int      in_clip = (x >= 62) && (x <= 65) && (y >= 31) && (y <= 32);
+            uint32_t want    = blt_want(x, y, 20, 10, 60, 30, 9, 5, in_clip ? old : blt_pixel(x - 40, y - 20));
+
+            if ((pix(x, y) != want) && !bad++)
+                check(0, "BitBLT: pixel (%d, %d) is %X, not %X", x, y, pix(x, y), want);
+        }
+}
+
 int
 main(int argc, char **argv)
 {
@@ -1238,6 +1288,7 @@ main(int argc, char **argv)
     run("blt_across", test_blt_across, C_BOOK);
     run("blt_color_cmp", test_blt_color_cmp, C_BOOK);
     run("blt_end", test_blt_end, C_TRIO64V);
+    run("ext_clip", test_ext_clip, C_BOOK);
 
     if (verbose)
         print_matrix();

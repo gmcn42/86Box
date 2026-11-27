@@ -638,6 +638,16 @@ s3_accel_clip_x(const s3_t *s3, int x)
     return x;
 }
 
+/*Scissors test. With external clipping (MULT_MISC bit 5) only pixels outside the
+  clipping rectangle are drawn.*/
+static __inline int
+s3_accel_clip(const s3_t *s3, int x, int y, int clip_l, int clip_r, int clip_t, int clip_b)
+{
+    const int inside = (x >= clip_l) && (x <= clip_r) && (y >= clip_t) && (y <= clip_b);
+
+    return (s3->accel.multifunc[0xe] & 0x20) ? !inside : inside;
+}
+
 static __inline uint32_t
 s3_accel_read_transfer(const s3_t *s3, uint32_t addr, int offset)
 {
@@ -8713,7 +8723,7 @@ s3_accel_start(int count, int cpu_input, uint32_t mix_dat, uint32_t cpu_data, vo
 
             if (s3->accel.cmd & 0x08) { /*Radial*/
                 while (count-- && (s3->accel.ssv_len >= 0)) {
-                    if ((s3_accel_clip_x(s3, s3->accel.cx & 0xfff) >= clip_l) && (s3_accel_clip_x(s3, s3->accel.cx & 0xfff) <= clip_r) && ((s3->accel.cy & 0xfff) >= clip_t) && ((s3->accel.cy & 0xfff) <= clip_b)) {
+                    if (s3_accel_clip(s3, s3_accel_clip_x(s3, s3->accel.cx & 0xfff), s3->accel.cy & 0xfff, clip_l, clip_r, clip_t, clip_b)) {
                         switch ((mix_dat & mix_mask) ? frgd_mix : bkgd_mix) {
                             case 0:
                                 src_dat = bkgd_color;
@@ -8825,7 +8835,7 @@ s3_accel_start(int count, int cpu_input, uint32_t mix_dat, uint32_t cpu_data, vo
 
             if (s3->accel.cmd & 0x08) { /*Radial*/
                 while (count-- && (s3->accel.sy >= 0)) {
-                    if ((s3_accel_clip_x(s3, s3->accel.cx & 0xfff) >= clip_l) && (s3_accel_clip_x(s3, s3->accel.cx & 0xfff) <= clip_r) && ((s3->accel.cy & 0xfff) >= clip_t) && ((s3->accel.cy & 0xfff) <= clip_b)) {
+                    if (s3_accel_clip(s3, s3_accel_clip_x(s3, s3->accel.cx & 0xfff), s3->accel.cy & 0xfff, clip_l, clip_r, clip_t, clip_b)) {
                         switch ((mix_dat & mix_mask) ? frgd_mix : bkgd_mix) {
                             case 0:
                                 src_dat = bkgd_color;
@@ -8937,7 +8947,7 @@ s3_accel_start(int count, int cpu_input, uint32_t mix_dat, uint32_t cpu_data, vo
                         s3->accel.temp_cnt = 16;
                     }
 
-                    if ((s3_accel_clip_x(s3, s3->accel.cx & 0xfff) >= clip_l) && (s3_accel_clip_x(s3, s3->accel.cx & 0xfff) <= clip_r) && ((s3->accel.cy & 0xfff) >= clip_t) && ((s3->accel.cy & 0xfff) <= clip_b)) {
+                    if (s3_accel_clip(s3, s3_accel_clip_x(s3, s3->accel.cx & 0xfff), s3->accel.cy & 0xfff, clip_l, clip_r, clip_t, clip_b)) {
                         switch ((mix_dat & mix_mask) ? frgd_mix : bkgd_mix) {
                             case 0:
                                 src_dat = bkgd_color;
@@ -9072,8 +9082,7 @@ s3_accel_start(int count, int cpu_input, uint32_t mix_dat, uint32_t cpu_data, vo
                     s3->accel.temp_cnt = 16;
                 }
 
-                if ((((s3_accel_clip_x(s3, s3->accel.cx) >= clip_l) && (s3_accel_clip_x(s3, s3->accel.cx) <= clip_r) && (s3->accel.cy >= clip_t) && (s3->accel.cy <= clip_b)) && !(s3->accel.multifunc[0xe] & 0x20)) ||
-                    (((s3_accel_clip_x(s3, s3->accel.cx) < clip_l) && (s3_accel_clip_x(s3, s3->accel.cx) > clip_r) && (s3->accel.cy < clip_t) && (s3->accel.cy > clip_b)) && (s3->accel.multifunc[0xe] & 0x20))) {
+                if (s3_accel_clip(s3, s3_accel_clip_x(s3, s3->accel.cx), s3->accel.cy, clip_l, clip_r, clip_t, clip_b)) {
                     if (s3_cpu_src(s3) || !cpu_input) {
                         switch ((mix_dat & mix_mask) ? frgd_mix : bkgd_mix) {
                             case 0:
@@ -9212,7 +9221,7 @@ s3_accel_start(int count, int cpu_input, uint32_t mix_dat, uint32_t cpu_data, vo
                     s3->accel.dest = dstbase + (y * s3->width * x_mul);
 
                     while (x_count-- && count--) {
-                        if (s3_accel_clip_x(s3, s3->accel.poly_x & 0xfff) >= clip_l && s3_accel_clip_x(s3, s3->accel.poly_x & 0xfff) <= clip_r && (s3->accel.poly_cy & 0xfff) >= clip_t && (s3->accel.poly_cy & 0xfff) <= clip_b) {
+                        if (s3_accel_clip(s3, s3_accel_clip_x(s3, s3->accel.poly_x & 0xfff), s3->accel.poly_cy & 0xfff, clip_l, clip_r, clip_t, clip_b)) {
                             switch (frgd_mix) {
                                 case 0:
                                     src_dat = s3->accel.bkgd_color;
@@ -9307,7 +9316,7 @@ s3_accel_start(int count, int cpu_input, uint32_t mix_dat, uint32_t cpu_data, vo
             if (!cpu_input && (frgd_mix == 3) && !vram_mask && !(s3->accel.multifunc[0xe] & 0x100) && ((s3->accel.cmd & 0xa0) == 0xa0) && ((s3->accel.frgd_mix & 0xf) == 7) && ((s3->accel.bkgd_mix & 0xf) == 7)) {
                 s3_log("Special BitBLT.\n");
                 while (1) {
-                    if ((s3_accel_clip_x(s3, s3->accel.dx) >= clip_l) && (s3_accel_clip_x(s3, s3->accel.dx) <= clip_r) && (s3->accel.dy >= clip_t) && (s3->accel.dy <= clip_b)) {
+                    if (s3_accel_clip(s3, s3_accel_clip_x(s3, s3->accel.dx), s3->accel.dy, clip_l, clip_r, clip_t, clip_b)) {
                         READ(s3->accel.src + (s3->accel.cx * x_mul), src_dat);
                         READ(s3->accel.dest + (s3->accel.dx * x_mul), dest_dat);
                         dest_dat = (src_dat & wrt_mask) | (dest_dat & ~wrt_mask);
@@ -9345,7 +9354,7 @@ s3_accel_start(int count, int cpu_input, uint32_t mix_dat, uint32_t cpu_data, vo
             } else {
                 s3_log("Normal blit, srcbase=%08x, dstbase=%08x, full=%04x, wrt_mask=%08x, extmultifunc0e=%03x, frgdmixval=%02x.\n", srcbase, dstbase, s3->accel.cmd, wrt_mask, s3->accel.multifunc[0x0e] & 0x180, s3->accel.frgd_mix);
                 while (count-- && (s3->accel.sy >= 0)) {
-                    if ((s3_accel_clip_x(s3, s3->accel.dx) >= clip_l) && (s3_accel_clip_x(s3, s3->accel.dx) <= clip_r) && (s3->accel.dy >= clip_t) && (s3->accel.dy <= clip_b)) {
+                    if (s3_accel_clip(s3, s3_accel_clip_x(s3, s3->accel.dx), s3->accel.dy, clip_l, clip_r, clip_t, clip_b)) {
                         if (vram_mask && (s3->accel.cmd & 0x10)) {
                             READ(s3->accel.src + (s3->accel.cx * x_mul), mix_dat);
                             mix_dat = ((mix_dat & rd_mask) == rd_mask);
@@ -9478,7 +9487,7 @@ s3_accel_start(int count, int cpu_input, uint32_t mix_dat, uint32_t cpu_data, vo
                 return; /*Wait for data from CPU*/
 
             while (count-- && (s3->accel.sy >= 0)) {
-                if ((s3_accel_clip_x(s3, s3->accel.dx) >= clip_l) && (s3_accel_clip_x(s3, s3->accel.dx) <= clip_r) && (s3->accel.dy >= clip_t) && (s3->accel.dy <= clip_b)) {
+                if (s3_accel_clip(s3, s3_accel_clip_x(s3, s3->accel.dx), s3->accel.dy, clip_l, clip_r, clip_t, clip_b)) {
                     if (vram_mask) {
                         READ(s3->accel.src + (s3->accel.cx * x_mul), mix_dat);
                         mix_dat = ((mix_dat & rd_mask) == rd_mask);
@@ -9607,7 +9616,7 @@ s3_accel_start(int count, int cpu_input, uint32_t mix_dat, uint32_t cpu_data, vo
                 if (s3->accel.dx > s3->accel.dy) {
                     error = s3->accel.dx / 2;
                     while (s3->accel.cx != s3->accel.destx_distp && count--) {
-                        if (s3_accel_clip_x(s3, s3->accel.cx & 0xfff) >= clip_l && s3_accel_clip_x(s3, s3->accel.cx & 0xfff) <= clip_r && (s3->accel.cy & 0xfff) >= clip_t && (s3->accel.cy & 0xfff) <= clip_b) {
+                        if (s3_accel_clip(s3, s3_accel_clip_x(s3, s3->accel.cx & 0xfff), s3->accel.cy & 0xfff, clip_l, clip_r, clip_t, clip_b)) {
                             src_dat = s3->accel.frgd_color;
 
                             if (s3->accel.multifunc[0xe] & 0x100) {
@@ -9657,7 +9666,7 @@ s3_accel_start(int count, int cpu_input, uint32_t mix_dat, uint32_t cpu_data, vo
                 } else {
                     error = s3->accel.dy / 2;
                     while (s3->accel.cy != s3->accel.desty_axstp && count--) {
-                        if (s3_accel_clip_x(s3, s3->accel.cx & 0xfff) >= clip_l && s3_accel_clip_x(s3, s3->accel.cx & 0xfff) <= clip_r && (s3->accel.cy & 0xfff) >= clip_t && (s3->accel.cy & 0xfff) <= clip_b) {
+                        if (s3_accel_clip(s3, s3_accel_clip_x(s3, s3->accel.cx & 0xfff), s3->accel.cy & 0xfff, clip_l, clip_r, clip_t, clip_b)) {
                             src_dat = s3->accel.frgd_color;
 
                             if (s3->accel.multifunc[0xe] & 0x100) {
@@ -9736,7 +9745,7 @@ s3_accel_start(int count, int cpu_input, uint32_t mix_dat, uint32_t cpu_data, vo
                     while (x_count-- && count--) {
                         int pat_x = s3->accel.poly_x & 7;
 
-                        if (s3_accel_clip_x(s3, s3->accel.poly_x & 0xfff) >= clip_l && s3_accel_clip_x(s3, s3->accel.poly_x & 0xfff) <= clip_r && (s3->accel.poly_cy & 0xfff) >= clip_t && (s3->accel.poly_cy & 0xfff) <= clip_b) {
+                        if (s3_accel_clip(s3, s3_accel_clip_x(s3, s3->accel.poly_x & 0xfff), s3->accel.poly_cy & 0xfff, clip_l, clip_r, clip_t, clip_b)) {
                             if (vram_mask) {
                                 READ(s3->accel.src + (pat_x * x_mul), mix_dat);
                                 mix_dat = ((mix_dat & rd_mask) == rd_mask);
@@ -9982,7 +9991,7 @@ s3_accel_start(int count, int cpu_input, uint32_t mix_dat, uint32_t cpu_data, vo
 
                 count = 4;
                 while (count-- && (s3->accel.sy >= 0)) {
-                    if ((s3_accel_clip_x(s3, s3->accel.dx) >= (clip_l * x_mul)) && (s3_accel_clip_x(s3, s3->accel.dx) <= (clip_r * x_mul)) && (s3->accel.dy >= clip_t) && (s3->accel.dy <= clip_b)) {
+                    if (s3_accel_clip(s3, s3_accel_clip_x(s3, s3->accel.dx), s3->accel.dy, clip_l * x_mul, clip_r * x_mul, clip_t, clip_b)) {
                         src_dat = cpu_dat & 0xff;
 
                         if (s3->accel.ropmix & 0x100) { /*Mono pattern used*/
@@ -10068,7 +10077,7 @@ s3_accel_start(int count, int cpu_input, uint32_t mix_dat, uint32_t cpu_data, vo
             }
 
             while (count-- && (s3->accel.sy >= 0)) {
-                if ((s3_accel_clip_x(s3, s3->accel.dx) >= clip_l) && (s3_accel_clip_x(s3, s3->accel.dx) <= clip_r) && (s3->accel.dy >= clip_t) && (s3->accel.dy <= clip_b)) {
+                if (s3_accel_clip(s3, s3_accel_clip_x(s3, s3->accel.dx), s3->accel.dy, clip_l, clip_r, clip_t, clip_b)) {
                     switch ((mix_dat & mix_mask) ? frgd_mix : bkgd_mix) {
                         case 0:
                             src_dat = s3->accel.bkgd_color;
