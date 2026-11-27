@@ -638,6 +638,14 @@ s3_accel_clip_x(const s3_t *s3, int x)
     return x;
 }
 
+/*CMD bit 4 = 0 is "move the current position only" in the books, but a real Trio64V+
+  still copies when it runs a BitBLT that way, through and across the plane.*/
+static __inline int
+s3_accel_blt_draw(const s3_t *s3)
+{
+    return (s3->accel.cmd & 0x10) || (s3->chip >= S3_TRIO64V);
+}
+
 static __inline uint32_t
 s3_accel_read_transfer(const s3_t *s3, uint32_t addr, int offset)
 {
@@ -9312,7 +9320,7 @@ s3_accel_start(int count, int cpu_input, uint32_t mix_dat, uint32_t cpu_data, vo
                         READ(s3->accel.dest + (s3->accel.dx * x_mul), dest_dat);
                         dest_dat = (src_dat & wrt_mask) | (dest_dat & ~wrt_mask);
 
-                        if (s3->accel.cmd & 0x10) {
+                        if (s3_accel_blt_draw(s3)) {
                             WRITE(s3->accel.dest + (s3->accel.dx * x_mul), dest_dat);
                         }
                     }
@@ -9346,7 +9354,7 @@ s3_accel_start(int count, int cpu_input, uint32_t mix_dat, uint32_t cpu_data, vo
                 s3_log("Normal blit, srcbase=%08x, dstbase=%08x, full=%04x, wrt_mask=%08x, extmultifunc0e=%03x, frgdmixval=%02x.\n", srcbase, dstbase, s3->accel.cmd, wrt_mask, s3->accel.multifunc[0x0e] & 0x180, s3->accel.frgd_mix);
                 while (count-- && (s3->accel.sy >= 0)) {
                     if ((s3_accel_clip_x(s3, s3->accel.dx) >= clip_l) && (s3_accel_clip_x(s3, s3->accel.dx) <= clip_r) && (s3->accel.dy >= clip_t) && (s3->accel.dy <= clip_b)) {
-                        if (vram_mask && (s3->accel.cmd & 0x10)) {
+                        if (vram_mask && s3_accel_blt_draw(s3)) {
                             READ(s3->accel.src + (s3->accel.cx * x_mul), mix_dat);
                             mix_dat = ((mix_dat & rd_mask) == rd_mask);
                             mix_dat = mix_dat ? mix_mask : 0;
@@ -9363,7 +9371,7 @@ s3_accel_start(int count, int cpu_input, uint32_t mix_dat, uint32_t cpu_data, vo
                                 break;
                             case 3:
                                 READ(s3->accel.src + (s3->accel.cx * x_mul), src_dat);
-                                if (vram_mask && (s3->accel.cmd & 0x10))
+                                if (vram_mask && s3_accel_blt_draw(s3))
                                     src_dat = ((src_dat & rd_mask) == rd_mask);
                                 break;
 
@@ -9392,7 +9400,7 @@ s3_accel_start(int count, int cpu_input, uint32_t mix_dat, uint32_t cpu_data, vo
                             old_dest_dat = dest_dat;
                             MIX
 
-                            if ((!(s3->accel.cmd & 0x10) && vram_mask) || (s3->accel.cmd & 0x10)) {
+                            if (vram_mask || s3_accel_blt_draw(s3)) {
                                 WRITE(s3->accel.dest + (s3->accel.dx * x_mul), dest_dat);
                             }
                         }
