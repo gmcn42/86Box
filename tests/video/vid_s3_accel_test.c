@@ -946,7 +946,7 @@ blt_source(int x, int y, int w, int h)
 /* BitBLT as in the books' example: (x1, y1) and (x2, y2) are the top left corners of the source and
    the destination; for X negative both start at x + WIDTH - 1, for Y negative at y + HEIGHT - 1. */
 static void
-blt(int x1, int y1, int x2, int y2, int w, int h, int xpos, int ypos, uint16_t extra)
+blt_cmd(int x1, int y1, int x2, int y2, int w, int h, int xpos, int ypos, uint16_t cmd)
 {
     if (!xpos) {
         x1 += w - 1;
@@ -962,7 +962,13 @@ blt(int x1, int y1, int x2, int y2, int w, int h, int xpos, int ypos, uint16_t e
     port_w(0x8ae8, y2); /* DESTY_AXSTP */
     port_w(0x96e8, w - 1);
     port_w(0xbee8, 0x0000 | (h - 1));
-    port_w(0x9ae8, CMD_BLT | (xpos ? 0x20 : 0) | (ypos ? 0x80 : 0) | extra);
+    port_w(0x9ae8, cmd | (xpos ? 0x20 : 0) | (ypos ? 0x80 : 0));
+}
+
+static void
+blt(int x1, int y1, int x2, int y2, int w, int h, int xpos, int ypos, uint16_t extra)
+{
+    blt_cmd(x1, y1, x2, y2, w, h, xpos, ypos, CMD_BLT | extra);
 }
 
 /* The expected pixel after a copy of the w x h source at (x1, y1) to (x2, y2), with `dst` the value
@@ -1125,7 +1131,8 @@ test_blt_mix_mask(void)
    written, FRGD_MIX logical 1, BKGD_MIX logical 0. Then their note: a 2-colour image from the
    source bits, here read from planes 0 and 1. CMD bit 1 (multi-pixel) set as in the example. */
 static void
-blt_across(uint32_t rd, uint32_t wrt, uint16_t fmix, uint16_t bmix, uint32_t fg, uint32_t bg, const char *what)
+blt_across(uint16_t cmd, uint32_t rd, uint32_t wrt, uint16_t fmix, uint16_t bmix, uint32_t fg, uint32_t bg,
+           const char *what)
 {
     int bad = 0;
 
@@ -1137,7 +1144,7 @@ blt_across(uint32_t rd, uint32_t wrt, uint16_t fmix, uint16_t bmix, uint32_t fg,
     port_w(0xbee8, 0xa0c0); /* PIX_CNTL: display memory selects the mix */
     port_w(0xbae8, fmix);
     port_w(0xb6e8, bmix);
-    blt(20, 10, 60, 30, 9, 5, 1, 1, CMD_PX_MD);
+    blt_cmd(20, 10, 60, 30, 9, 5, 1, 1, cmd);
     for (int y = 29; y <= 35; y++)
         for (int x = 59; x <= 69; x++) {
             uint32_t bit  = (blt_pixel(x - 40, y - 20) & rd) == rd;
@@ -1153,8 +1160,9 @@ blt_across(uint32_t rd, uint32_t wrt, uint16_t fmix, uint16_t bmix, uint32_t fg,
 static void
 test_blt_across(void)
 {
-    blt_across(0x0001, 0x0004, 0x0002, 0x0001, 0, 0, "plane 0 to plane 2");
-    blt_across(0x0003, 0xffffffff, 0x0027, 0x0007, color(), ~color() & depth_mask(), "planes 0+1, 2 colours");
+    blt_across(CMD_BLT | CMD_PX_MD, 0x0001, 0x0004, 0x0002, 0x0001, 0, 0, "plane 0 to plane 2");
+    blt_across(CMD_BLT | CMD_PX_MD, 0x0003, 0xffffffff, 0x0027, 0x0007, color(), ~color() & depth_mask(),
+               "planes 0+1, 2 colours");
 }
 
 /* Colour compare (MULT_MISC, BEE8h index E, bit 8): with SRC NE (bit 7) = 0 the destination isn't
@@ -1213,6 +1221,21 @@ test_blt_end(void)
     }
 }
 
+/* CMD bit 4 = 0 is "Move the current position only - don't draw" in the books (86C928 p. 10-10,
+   Vision864 and Vision964 p. 18-9, Trio32/64 p. 18-12, Trio64V+ p. 20-9), but a real Trio64V+
+   (rev 44) runs a BitBLT that way like one with bit 4 set, through and across the plane. */
+static void
+test_blt_nodraw(void)
+{
+    blt_source(20, 10, 9, 5);
+    port_w(0xbee8, 0xa000);
+    port_w(0xbae8, 0x0067);
+    blt_cmd(20, 10, 60, 30, 9, 5, 1, 1, CMD_BLT & ~0x10);
+    check_blt(20, 10, 60, 30, 9, 5, "through");
+
+    blt_across(CMD_BLT & ~0x10, 0x0003, 0xffffffff, 0x0027, 0x0007, color(), ~color() & depth_mask(), "across");
+}
+
 int
 main(int argc, char **argv)
 {
@@ -1238,6 +1261,7 @@ main(int argc, char **argv)
     run("blt_across", test_blt_across, C_BOOK);
     run("blt_color_cmp", test_blt_color_cmp, C_BOOK);
     run("blt_end", test_blt_end, C_TRIO64V);
+    run("blt_nodraw", test_blt_nodraw, C_TRIO64V);
 
     if (verbose)
         print_matrix();
