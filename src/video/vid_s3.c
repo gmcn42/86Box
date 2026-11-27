@@ -1096,16 +1096,8 @@ s3_accel_out_fifo(s3_t *s3, uint16_t port, uint8_t val)
                     if (!(s3->accel.multifunc[0xe] & 0x200))
                         s3->accel.multifunc[0xe] ^= 0x10;
                 }
-            } else {
+            } else
                 s3->accel.bkgd_color = (s3->accel.bkgd_color & ~0x0000ff00) | (val << 8);
-
-                if ((s3->chip >= S3_86C928) && (s3->chip < S3_VISION964))
-                    s3->accel.multifunc[0xe] ^= 0x10;
-                else if (s3->chip >= S3_VISION964) {
-                    if (!(s3->accel.multifunc[0xe] & 0x200))
-                        s3->accel.multifunc[0xe] ^= 0x10;
-                }
-            }
             break;
         case 0xa14a:
         case 0xa2ea:
@@ -1173,16 +1165,8 @@ s3_accel_out_fifo(s3_t *s3, uint16_t port, uint8_t val)
                     if (!(s3->accel.multifunc[0xe] & 0x200))
                         s3->accel.multifunc[0xe] ^= 0x10;
                 }
-            } else {
+            } else
                 s3->accel.frgd_color = (s3->accel.frgd_color & ~0x0000ff00) | (val << 8);
-
-                if ((s3->chip >= S3_86C928) && (s3->chip < S3_VISION964))
-                    s3->accel.multifunc[0xe] ^= 0x10;
-                else if (s3->chip >= S3_VISION964) {
-                    if (!(s3->accel.multifunc[0xe] & 0x200))
-                        s3->accel.multifunc[0xe] ^= 0x10;
-                }
-            }
             break;
         case 0xa54a:
         case 0xa6ea:
@@ -1251,16 +1235,8 @@ s3_accel_out_fifo(s3_t *s3, uint16_t port, uint8_t val)
                     if (!(s3->accel.multifunc[0xe] & 0x200))
                         s3->accel.multifunc[0xe] ^= 0x10;
                 }
-            } else {
+            } else
                 s3->accel.wrt_mask = (s3->accel.wrt_mask & ~0x0000ff00) | (val << 8);
-
-                if ((s3->chip >= S3_86C928) && (s3->chip < S3_VISION964))
-                    s3->accel.multifunc[0xe] ^= 0x10;
-                else if (s3->chip >= S3_VISION964) {
-                    if (!(s3->accel.multifunc[0xe] & 0x200))
-                        s3->accel.multifunc[0xe] ^= 0x10;
-                }
-            }
             break;
         case 0xa94a:
         case 0xaaea:
@@ -1330,16 +1306,8 @@ s3_accel_out_fifo(s3_t *s3, uint16_t port, uint8_t val)
                     if (!(s3->accel.multifunc[0xe] & 0x200))
                         s3->accel.multifunc[0xe] ^= 0x10;
                 }
-            } else {
+            } else
                 s3->accel.rd_mask = (s3->accel.rd_mask & ~0x0000ff00) | (val << 8);
-
-                if ((s3->chip >= S3_86C928) && (s3->chip < S3_VISION964))
-                    s3->accel.multifunc[0xe] ^= 0x10;
-                else if (s3->chip >= S3_VISION964) {
-                    if (!(s3->accel.multifunc[0xe] & 0x200))
-                        s3->accel.multifunc[0xe] ^= 0x10;
-                }
-            }
             break;
         case 0xad4a:
         case 0xaeea:
@@ -1434,16 +1402,8 @@ s3_accel_out_fifo(s3_t *s3, uint16_t port, uint8_t val)
                         if (!(s3->accel.multifunc[0xe] & 0x200))
                             s3->accel.multifunc[0xe] ^= 0x10;
                     }
-                } else {
+                } else
                     s3->accel.color_cmp = (s3->accel.color_cmp & ~0x0000ff00) | (val << 8);
-
-                    if ((s3->chip >= S3_86C928) && (s3->chip < S3_VISION964))
-                        s3->accel.multifunc[0xe] ^= 0x10;
-                    else if (s3->chip >= S3_VISION964) {
-                        if (!(s3->accel.multifunc[0xe] & 0x200))
-                            s3->accel.multifunc[0xe] ^= 0x10;
-                    }
-                }
             } else {
                 s3->accel.b2e8_pix = 1;
                 if (s3_cpu_dest(s3))
@@ -1622,11 +1582,11 @@ s3_accel_out_fifo(s3_t *s3, uint16_t port, uint8_t val)
                     s3->accel.pat_bg_color = (s3->accel.pat_bg_color & ~0xff000000) | (val << 24);
                 else
                     s3->accel.pat_bg_color = (s3->accel.pat_bg_color & ~0x0000ff00) | (val << 8);
+
+                if (!(s3->accel.multifunc[0xe] & 0x200))
+                    s3->accel.multifunc[0xe] ^= 0x10;
             } else
                 s3->accel.pat_bg_color = (s3->accel.pat_bg_color & ~0x0000ff00) | (val << 8);
-
-            if (!(s3->accel.multifunc[0xe] & 0x200))
-                s3->accel.multifunc[0xe] ^= 0x10;
             break;
         case 0xe54a:
         case 0xe6ea:
@@ -1693,11 +1653,11 @@ s3_accel_out_fifo(s3_t *s3, uint16_t port, uint8_t val)
                     s3->accel.pat_fg_color = (s3->accel.pat_fg_color & ~0xff000000) | (val << 24);
                 else
                     s3->accel.pat_fg_color = (s3->accel.pat_fg_color & ~0x0000ff00) | (val << 8);
+
+                if (!(s3->accel.multifunc[0xe] & 0x200))
+                    s3->accel.multifunc[0xe] ^= 0x10;
             } else
                 s3->accel.pat_fg_color = (s3->accel.pat_fg_color & ~0x0000ff00) | (val << 8);
-
-            if (!(s3->accel.multifunc[0xe] & 0x200))
-                s3->accel.multifunc[0xe] ^= 0x10;
             break;
         case 0xed4a:
         case 0xeeea:
@@ -5719,16 +5679,8 @@ s3_accel_in(uint16_t port, void *priv)
                         if (!(s3->accel.multifunc[0xe] & 0x200))
                             s3->accel.multifunc[0xe] ^= 0x10;
                     }
-                } else {
+                } else
                     temp2 = s3->accel.bkgd_color >> 8;
-
-                    if (s3->chip < S3_VISION964)
-                        s3->accel.multifunc[0xe] ^= 0x10;
-                    else {
-                        if (!(s3->accel.multifunc[0xe] & 0x200))
-                            s3->accel.multifunc[0xe] ^= 0x10;
-                    }
-                }
                 return temp2;
             }
             break;
@@ -5809,16 +5761,8 @@ s3_accel_in(uint16_t port, void *priv)
                         if (!(s3->accel.multifunc[0xe] & 0x200))
                             s3->accel.multifunc[0xe] ^= 0x10;
                     }
-                } else {
+                } else
                     temp2 = s3->accel.frgd_color >> 8;
-
-                    if (s3->chip < S3_VISION964)
-                        s3->accel.multifunc[0xe] ^= 0x10;
-                    else {
-                        if (!(s3->accel.multifunc[0xe] & 0x200))
-                            s3->accel.multifunc[0xe] ^= 0x10;
-                    }
-                }
                 return temp2;
             }
             break;
@@ -5900,16 +5844,8 @@ s3_accel_in(uint16_t port, void *priv)
                         if (!(s3->accel.multifunc[0xe] & 0x200))
                             s3->accel.multifunc[0xe] ^= 0x10;
                     }
-                } else {
+                } else
                     temp2 = s3->accel.wrt_mask >> 8;
-
-                    if (s3->chip < S3_VISION964)
-                        s3->accel.multifunc[0xe] ^= 0x10;
-                    else {
-                        if (!(s3->accel.multifunc[0xe] & 0x200))
-                            s3->accel.multifunc[0xe] ^= 0x10;
-                    }
-                }
                 return temp2;
             }
             break;
@@ -5991,16 +5927,8 @@ s3_accel_in(uint16_t port, void *priv)
                         if (!(s3->accel.multifunc[0xe] & 0x200))
                             s3->accel.multifunc[0xe] ^= 0x10;
                     }
-                } else {
+                } else
                     temp2 = s3->accel.rd_mask >> 8;
-
-                    if (s3->chip < S3_VISION964)
-                        s3->accel.multifunc[0xe] ^= 0x10;
-                    else {
-                        if (!(s3->accel.multifunc[0xe] & 0x200))
-                            s3->accel.multifunc[0xe] ^= 0x10;
-                    }
-                }
 
                 return temp2;
             }
@@ -6083,16 +6011,8 @@ s3_accel_in(uint16_t port, void *priv)
                         if (!(s3->accel.multifunc[0xe] & 0x200))
                             s3->accel.multifunc[0xe] ^= 0x10;
                     }
-                } else {
+                } else
                     temp2 = s3->accel.color_cmp >> 8;
-
-                    if (s3->chip < S3_VISION964)
-                        s3->accel.multifunc[0xe] ^= 0x10;
-                    else {
-                        if (!(s3->accel.multifunc[0xe] & 0x200))
-                            s3->accel.multifunc[0xe] ^= 0x10;
-                    }
-                }
                 return temp2;
             }
             break;
@@ -6115,7 +6035,7 @@ s3_accel_in(uint16_t port, void *priv)
             else
                 temp2 = s3->accel.color_cmp >> 24;
 
-            if (!(s3->accel.multifunc[0xe] & 0x200))
+            if ((s3->bpp == 3) && !(s3->accel.multifunc[0xe] & 0x200))
                 s3->accel.multifunc[0xe] ^= 0x10;
             return temp2;
 
@@ -6311,9 +6231,6 @@ s3_accel_in(uint16_t port, void *priv)
             } else
                 temp2 = s3->accel.pat_bg_color >> 8;
 
-            if (!(s3->accel.multifunc[0xe] & 0x200))
-                s3->accel.multifunc[0xe] ^= 0x10;
-
             return temp2;
 
         case 0xe54a:
@@ -6402,9 +6319,6 @@ s3_accel_in(uint16_t port, void *priv)
                     s3->accel.multifunc[0xe] ^= 0x10;
             } else
                 temp2 = s3->accel.pat_fg_color >> 8;
-
-            if (!(s3->accel.multifunc[0xe] & 0x200))
-                s3->accel.multifunc[0xe] ^= 0x10;
 
             return temp2;
 

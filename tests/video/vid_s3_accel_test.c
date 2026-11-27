@@ -1213,6 +1213,24 @@ test_blt_end(void)
     }
 }
 
+/* RSF (MULT_MISC, BEE8h index E, bit 4) selects the half of a 32-bit register "in 32 bpp mode"
+   (86C928 p. 10-18, Vision864 and Vision964 p. 18-18, Trio32/64 p. 18-23, Trio64V+ p. 20-18) and
+   toggles with each 16-bit access in that mode (Trio32/64 p. 18-16). At 8 and 16 bpp it stays 0: a real
+   Trio64V+ (rev 44) reads MULT_MISC back through READ_SEL with RSF 0 after each colour write there. */
+static void
+test_rsf(void)
+{
+    for (int n = 1; n <= 3; n++) {
+        int want = (cur_bpp == 32) && (n & 1);
+        int rsf;
+
+        port_w(0xa6e8, 0x1234); /* One 16-bit FRGD_COLOR write */
+        port_w(0xbee8, 0xf006); /* READ_SEL: MULT_MISC */
+        rsf = !!(port_r(0xbee8) & 0x10);
+        check(rsf == want, "RSF after %d colour writes is %d, not %d", n, rsf, want);
+    }
+}
+
 int
 main(int argc, char **argv)
 {
@@ -1238,6 +1256,7 @@ main(int argc, char **argv)
     run("blt_across", test_blt_across, C_BOOK);
     run("blt_color_cmp", test_blt_color_cmp, C_BOOK);
     run("blt_end", test_blt_end, C_TRIO64V);
+    run("rsf", test_rsf, C_BOOK);
 
     if (verbose)
         print_matrix();
